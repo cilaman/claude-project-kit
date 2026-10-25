@@ -1,0 +1,8 @@
+{
+  "name": "project-kit",
+  "description": "Project organisation method for repos worked on by people and parallel Claude sessions: backlog item = GitHub issue, claim = pushed branch, generated indexes, one fact = one home, hard rules backed by guards. Skills: project-init (scaffold a new repo), bl-start, bl-finish, bl-bug, steward, decision-record, guard.",
+  "version": "0.1.0",
+  "author": { "name": "Martin Cichý" },
+  "license": "MIT",
+  "keywords": ["backlog", "github-issues", "process", "claude-md", "scaffold", "decision-records"]
+}

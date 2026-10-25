@@ -1,0 +1,61 @@
+name: Regression
+
+# The regression suite asks about the **environment**, not the code: pinned images,
+# external services, binaries of the runner. It is therefore not part of the Definition
+# of Done or of the pull-request gate — a red run here is not a reason to hold a push.
+# It runs weekly, by hand, and before a release.
+#
+# A red run opens (or updates) one issue labelled `regression`, so the finding has a
+# number and an owner instead of a red badge nobody looks at. People never put that
+# label on by hand — it is this workflow's.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Regression
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+# kit:if python-django
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Regression suite
+        id: suite
+        # `--no-cov`: a fraction of the suite would report a coverage collapse that
+        # never happened. `-m regression` overrides the default `not regression`.
+        run: {{TEST_COMMAND}} -m regression --no-cov
+# kit:endif
+# kit:if !python-django
+      - name: Regression suite
+        id: suite
+        run: {{TEST_COMMAND}}
+# kit:endif
+      - name: Open or update the regression issue
+        if: failure() && steps.suite.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          OPEN=$(gh issue list --label regression --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN" ]; then
+            gh issue comment "$OPEN" --body "Still red: $RUN_URL"
+          else
+            gh issue create --label regression \
+              --title "Regression run is red ($(date -u +%Y-%m-%d))" \
+              --body "The weekly regression run failed: $RUN_URL. The suite asks about the environment, not the code — find what changed in the runner, image or service first."
+          fi

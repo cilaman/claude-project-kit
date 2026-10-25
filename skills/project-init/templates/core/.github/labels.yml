@@ -1,0 +1,46 @@
+# The label vocabulary of GitHub Issues — its one home.
+#
+# Applied with `python3 scripts/github_labels.py`; a label clicked together in the UI is
+# lost on the next run. Want a new one? It belongs here, not in the UI.
+#
+# **The file is complete, not additive:** a label missing here gets deleted by the
+# script. GitHub's default set (`enhancement`, `documentation`, `good first issue`, …)
+# is removed deliberately — two vocabularies side by side are a silent source of
+# inconsistency, and `enhancement` would compete with the plain fact that an item
+# without a label is ordinary work. `bug` from the default set stays with its own
+# description.
+#
+# **`escaped-dod` says nothing about the defect and everything about the process.** It
+# marks an issue born from a defect found *after* a green Definition of Done — tests,
+# lint and `check_repo.py` all green, the defect in the code anyway. The body names the
+# sieve that should have caught it. `gh issue list --label escaped-dod` is then the only
+# record of which sieve pays off (tests, screenshots, adversarial review).
+#
+# **Priority and status are not labels:** both live in the task's front matter
+# (`priority:`, `status:`) and feed the generated index. `in-progress` below is not a
+# status but the claim, and the claim has no home in the repository at all — the
+# workflow `task-lifecycle.yml` derives it from the pull request.
+labels:
+  - name: bug
+    color: d73a4a
+    description: Defect — restores promised behaviour, commit is fix(…)
+  - name: chore
+    color: fef2c0
+    description: Cleanup without a change of product behaviour
+  - name: needs-spec
+    color: d4c5f9
+    description: A file backlog/BL-NN is written too — the item needs a written design
+  - name: in-progress
+    color: 1d76db
+    description: Claimed — a branch bl-NN-slug with a claim commit exists
+  - name: nojira
+    color: e4e669
+    description: On a PR — a change without a backlog item, the guard asks for no Closes #NN
+  - name: escaped-dod
+    color: "5319e7"
+    description: Defect found after a green Definition of Done — the body names the sieve that should have caught it
+# kit:if ci-savings
+  - name: regression
+    color: b60205
+    description: Red regression run — opened by the weekly workflow, not by people
+# kit:endif

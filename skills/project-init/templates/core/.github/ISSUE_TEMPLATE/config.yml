@@ -1,0 +1,8 @@
+# Blank issues are off: both forms are short enough that a third free path would only
+# split the queue. Sessions are not affected — `gh issue create --title … --body …` goes
+# through the API, not the web form, so it bypasses the forms by definition.
+blank_issues_enabled: false
+contact_links:
+  - name: When an issue also gets a file BL-NN
+    url: https://github.com/{{GITHUB_REPO}}/blob/{{MAIN_BRANCH}}/docs/decisions/task-tracking.md
+    about: The task-tracking decision — repo × GitHub split, claim protocol and promotion criterion.

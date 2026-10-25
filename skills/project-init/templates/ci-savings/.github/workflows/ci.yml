@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [{{MAIN_BRANCH}}]
+  pull_request:
+    # `ready_for_review` is not in the default set — without it, leaving draft would run
+    # nothing, and the moment a PR becomes a merge candidate is the one that must be
+    # checked: the last push before it carries the task's move into done/ and the
+    # regenerated backlog.
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# The token gets no more than any job needs; jobs widen it themselves.
+permissions:
+  contents: read
+
+# An older run tests code that no longer holds — cancelled on a PR. **Never on the main
+# line:** there the group is keyed by sha, and every commit there is a fact of its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Repository and lint
+    runs-on: ubuntu-latest
+    # One job, not two: a job is billed per started minute and both checks take
+    # seconds. Both steps run (`continue-on-error`) and the last step fails the job.
+    #
+    # This job also decides **whether and how** `Tests` runs. It is decided here and
+    # not inside the test job because GitHub bills a started job, not its steps: a test
+    # job that starts only to find it has nothing to do costs a full minute.
+    #
+    # `issues: read` for the guard comparing the backlog with the issue queue;
+    # `checks: read` for the already-green filter, which asks the API about earlier runs.
+    # Without `checks: read` the filter's API call fails and it answers "test it" — a
+    # silent loss of the saving, not a failure.
+    permissions:
+      contents: read
+      issues: read
+      checks: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      lane: ${{ steps.scope.outputs.lane }}
+      pytest_args: ${{ steps.scope.outputs.pytest_args }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The scope below needs the base of the diff; a shallow clone has none.
+          fetch-depth: 0
+      # The scope is **derived from the diff**, never written by the author — a keyword
+      # could skip tests on a change to the source too. The lanes live in
+      # `scripts/ci_scope.py`, kept honest by `tests/scripts/test_ci_scope.py`.
+      #
+      # These steps come before the checks on purpose: job outputs come from steps that
+      # ran, so `Tests` gets its scope even when lint fails, and the author sees both.
+      #
+      # `|| true`: an unknown base (first push, force-push) must not fail the step. An
+      # empty input reads as "don't know" and runs the full suite — the only side the
+      # script may err on.
+      - name: Scope of the change
+        id: scope
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          FLAG=""
+          if [ "${DRAFT:-false}" = "true" ]; then FLAG="--draft"; fi
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          { git diff --name-only "$BASE" HEAD 2>/dev/null || true; } \
+            | python3 scripts/ci_scope.py --github-output $FLAG
+      # A merge re-tests the tree its PR just tested. Pull-request heads are the only way
+      # to find that tested commit after a rebase or squash merge. `blob:none`: the
+      # answer needs commit objects only (they carry the tree id), no file contents.
+      - name: Pull-request heads to compare trees with
+        if: github.event_name == 'push'
+        run: git fetch -q --filter=blob:none origin '+refs/pull/*/head:refs/remotes/pr/*' || true
+      - name: Does this tree already have a green run?
+        id: green
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/ci_already_green.py --sha "$GITHUB_SHA" --github-output
+      # The one place both answers are combined, and the one condition `Tests` hangs on.
+      - name: Will the tests run?
+        id: decide
+        run: |
+          if [ "${{ steps.scope.outputs.lane }}" = "none" ] \
+             || [ "${{ steps.green.outputs.already_green }}" = "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+# kit:if python-django
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+# kit:endif
+      # Never filtered: for a documentation-only change this is the one check that has
+      # something to say.
+      - name: Repository structure and backlog consistency
+        id: repo
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/check_repo.py
+# kit:if python-django
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: {{LINT_COMMAND}}
+# kit:endif
+      - name: Outcome of the checks
+        # Without this step `continue-on-error` would turn a failure into green.
+        if: steps.repo.outcome == 'failure' || steps.lint.outcome == 'failure'
+        run: |
+          echo "repository: ${{ steps.repo.outcome }}"
+          echo "lint: ${{ steps.lint.outcome }}"
+          exit 1
+
+  app-test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: checks
+    # **Not started when there is nothing to do.** A job skipped by `if:` reports as a
+    # success and does not block a merge, so skipping is cheaper than starting an empty
+    # job. `!cancelled()` rather than the default `success()`: a red lint in `checks`
+    # must not hide the test result.
+    if: ${{ !cancelled() && needs.checks.outputs.run == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+      - name: Tests of the process scripts
+        run: python3 -m unittest discover -s tests/scripts -t .
+# kit:if python-django
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+      # `pytest_args` is empty for the full suite and lists the readers in the fast lane;
+      # one place assembles it (`ci_scope.py`), so lane and coverage never disagree.
+      - name: Test suite
+        run: {{TEST_COMMAND}} ${{ needs.checks.outputs.pytest_args }}
+# kit:endif
+# kit:if !python-django
+      # The fast lane is fully covered by the process-script tests above; only the full
+      # lane runs the project's own suite.
+      - name: Test suite
+        if: needs.checks.outputs.lane == 'full'
+        run: {{TEST_COMMAND}}
+# kit:endif

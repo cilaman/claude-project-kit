@@ -1,0 +1,36 @@
+# Merged into pyproject.toml at init (CONVENTIONS.md, "fragment"). Keys already present
+# in the target win; this only fills in what the method relies on.
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "pytest-django",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["{{SRC_DIR}}", "tests", "scripts"]
+# Migrations are generated; formatting them by hand would be a second writer.
+extend-exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "DJ"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "{{DJANGO_PROJECT}}.settings.test"
+pythonpath = ["{{SRC_DIR}}", "scripts"]
+testpaths = ["tests"]
+# The regression suite asks about the environment, not the code — it is out of the
+# Definition of Done and runs from its own workflow (`-m regression` overrides this).
+addopts = "-m 'not regression' --cov --cov-report=term-missing:skip-covered"
+markers = [
+    "regression: asks about the environment (images, services, binaries), not the code; out of the DoD",
+]
+
+[tool.coverage.run]
+source = ["{{SRC_DIR}}"]
+omit = ["*/migrations/*"]

@@ -1,0 +1,97 @@
+name: Task lifecycle
+
+# Steps 3 and 5 of the claim protocol (CLAUDE.md, the claim rule) stop standing on
+# goodwill: the `in-progress` label and the assignee follow the pull request, and a PR
+# whose description names no issue goes red while the number can still be filled in.
+#
+# The trigger hangs on the **pull request, not on the branch name**: a session whose
+# branch is dictated from outside (`claude/…`) would never fire a guard keyed on `bl-*`.
+#
+# **This workflow closes no issue** — that stays native through `Closes #NN` in the
+# description. Two paths to the same write are two places for it to drift.
+on:
+  pull_request:
+    # `edited`, so that filling the number into the description turns the check green
+    # without another push; `synchronize`, so the check exists on every new head sha;
+    # `labeled`/`unlabeled`, so that putting on `nojira` re-runs it — otherwise the
+    # author would have to push to prove they need not push.
+    types: [opened, edited, reopened, ready_for_review, synchronize, closed, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+# The description is edited on the way and every push fires `synchronize`; an older
+# run would judge a description that no longer holds.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lifecycle:
+    name: Task lifecycle
+    runs-on: ubuntu-latest
+    # A push to a **draft** gives this job nothing to do: `sync` is skipped on
+    # `synchronize`, `finished` exempts drafts and `check` reads the description, which
+    # a push does not change. A started job is billed as a whole minute, so the narrow
+    # condition `draft AND synchronize` saves most runs. Not the whole draft: `closed`
+    # on an abandoned draft is exactly where the claim has to be cleared.
+    #
+    # Do not drop event types instead: a removed type produces no check on that sha,
+    # while a job skipped by `if:` reports as skipped and does not block a merge.
+    if: >-
+      !(github.event.pull_request.draft && github.event.action == 'synchronize')
+    # Three checks in one job: a job is billed per started minute and each check takes
+    # seconds. Each step runs regardless of the others (`continue-on-error`) and the
+    # last one prints all three outcomes and fails the job — the author sees every
+    # failure at once, which three serial steps without it would hide.
+    #
+    # The price, said out loud: the step that only reads the description runs in a job
+    # whose token may write to issues.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+      # On a closed PR the guard would come too late to be satisfiable — nobody can
+      # fix the description any more.
+      - name: PR names its issue
+        id: closes
+        if: github.event.action != 'closed'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/task_lifecycle.py check
+      # The direction "done ⇒ closed" is unsatisfiable on a branch; this one is: the
+      # Definition of Done moves the task into done/ in the branch, so it must hold by
+      # the time the PR is ready for review. Drafts are exempt inside the script.
+      - name: Closed task lies in done/
+        id: finished
+        if: github.event.action != 'closed'
+        continue-on-error: true
+        run: python3 scripts/task_lifecycle.py finished
+      # A push changes nothing about the claim — it follows the description and whether
+      # the PR is alive, and `synchronize` touches neither.
+      - name: Label and assignee follow the PR
+        id: claim
+        if: github.event.action != 'synchronize'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/task_lifecycle.py sync
+      - name: Outcome of all three checks
+        # Without this step `continue-on-error` would turn a failure into green. A step
+        # skipped by its condition is `skipped`, not `failure` — so a closed PR does not
+        # stay red forever.
+        if: >-
+          steps.closes.outcome == 'failure'
+          || steps.finished.outcome == 'failure'
+          || steps.claim.outcome == 'failure'
+        run: |
+          echo "PR names its issue: ${{ steps.closes.outcome }}"
+          echo "closed task lies in done/: ${{ steps.finished.outcome }}"
+          echo "label and assignee: ${{ steps.claim.outcome }}"
+          exit 1

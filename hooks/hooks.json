@@ -1,0 +1,17 @@
+{
+  "description": "Refuses hand edits of files and blocks that scripts/check_repo.py generates, in repositories initialised by project-kit.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_generated.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+name: Bug — a finding from use
+description: Something behaves differently than it should. No ceremony, three fields.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The number of this issue **is** the backlog item number `BL-NN`; the commit references it as `fix(scope): … — BL-NN`.
+        A file `backlog/BL-NN-*.md` is written **only when the fix needs a written design** —
+        [when exactly](https://github.com/{{GITHUB_REPO}}/blob/{{MAIN_BRANCH}}/docs/decisions/task-tracking.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: what-was-expected
+    attributes:
+      label: What was expected
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: Module, screen, script or test — a name is enough.
+    validations:
+      required: true

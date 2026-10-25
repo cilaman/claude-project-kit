@@ -1,0 +1,14 @@
+{
+  "name": "project-kit",
+  "owner": { "name": "Martin Cichý" },
+  "metadata": { "description": "Local marketplace for the project-kit plugin", "version": "0.1.0" },
+  "plugins": [
+    {
+      "name": "project-kit",
+      "source": "./",
+      "description": "Backlog ↔ GitHub issues, claim protocol, generated indexes, guards — and project-init to scaffold it into a new repository.",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}

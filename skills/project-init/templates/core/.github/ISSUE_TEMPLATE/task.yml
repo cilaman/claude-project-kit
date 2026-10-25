@@ -1,0 +1,23 @@
+name: Task — a backlog item
+description: Work that needs doing. One sentence.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The number of this issue **is** the backlog item number `BL-NN`. A task is claimed by
+        **pushing a branch `bl-NN-slug` with a claim commit**, not by assignment —
+        [protocol and promotion criterion](https://github.com/{{GITHUB_REPO}}/blob/{{MAIN_BRANCH}}/docs/decisions/task-tracking.md).
+  - type: textarea
+    id: intent
+    attributes:
+      label: Intent
+      description: One sentence — what must hold once this is done.
+    validations:
+      required: true
+  - type: checkboxes
+    id: spec
+    attributes:
+      label: Does it need a spec file?
+      description: Ticked = add the `needs-spec` label and write `backlog/BL-NN-slug.md`.
+      options:
+        - label: The solution is being decided, it spans several modules, or it has its own DoD beyond "tests green"

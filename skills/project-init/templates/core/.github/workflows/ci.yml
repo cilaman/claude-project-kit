@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [{{MAIN_BRANCH}}]
+  pull_request:
+    # `ready_for_review` is not in the default set — without it, leaving draft would run
+    # nothing, and the moment a PR becomes a merge candidate is the one that must be
+    # checked: the last push before it carries the task's move into done/ and the
+    # regenerated backlog.
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# The token gets no more than any job needs; jobs widen it themselves.
+permissions:
+  contents: read
+
+# An older run tests code that no longer holds — cancelled on a PR. **Never on the main
+# line:** there the group is keyed by sha, and every commit there is a fact of its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Repository and lint
+    runs-on: ubuntu-latest
+    # One job, not two: a job is billed per started minute and both checks take
+    # seconds. Both steps run (`continue-on-error`) and the last step fails the job, so
+    # the author sees both failures at once.
+    #
+    # `issues: read` for the guard comparing the backlog with the issue queue — it only
+    # lists issues. Closing them is the merge's job through `Closes #NN`, not CI's.
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+# kit:if python-django
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+# kit:endif
+      - name: Repository structure and backlog consistency
+        id: repo
+        continue-on-error: true
+        # Without a token `gh` is not logged in and the issue guard skips itself — CI is
+        # the one place it should run. The script stays green without `gh` anyway.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/check_repo.py
+# kit:if python-django
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: {{LINT_COMMAND}}
+# kit:endif
+      - name: Outcome of the checks
+        # Without this step `continue-on-error` would turn a failure into green.
+        if: steps.repo.outcome == 'failure' || steps.lint.outcome == 'failure'
+        run: |
+          echo "repository: ${{ steps.repo.outcome }}"
+          echo "lint: ${{ steps.lint.outcome }}"
+          exit 1
+
+  app-test:
+    name: Tests
+    runs-on: ubuntu-latest
+    # `!cancelled()` rather than the default `success()`: a red lint must not hide the
+    # test result — the author should see both failures in one round.
+    needs: checks
+    if: ${{ !cancelled() }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+      # The process scripts are stdlib and tested with unittest, so this runs in any
+      # project, whatever its own test runner is.
+      - name: Tests of the process scripts
+        run: python3 -m unittest discover -s tests/scripts -t .
+# kit:if python-django
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+# kit:endif
+      - name: Test suite
+        run: {{TEST_COMMAND}}
