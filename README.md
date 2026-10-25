@@ -17,11 +17,16 @@ guards.** Why each rule exists: [METHOD.md](METHOD.md).
 | skill `decision-record` | write or amend a decision record in `docs/decisions/` |
 | skill `guard` | turn a prose invariant into a test with anti-vacuum, reverse direction and mutation proof |
 | hook `guard_generated.py` | refuses hand edits of generated blocks and `backlog/tasks.tsv` |
-| templates | profiles `core`, `requirements`, `ci-savings`, `python-django` (+ `tenancy`) — see [CONVENTIONS.md](skills/project-init/CONVENTIONS.md) |
+| templates | profiles `core`, `requirements`, `ci-savings`, `architecture` — none tied to a stack; see [CONVENTIONS.md](skills/project-init/CONVENTIONS.md) |
+| `skills/guard/references/` | worked examples of stack-native guards (Python/Django/PostgreSQL RLS today) — shapes to translate, not templates |
 
 The scripts the templates install (`check_repo.py`, `task_lifecycle.py`,
-`github_labels.py`, `ci_scope.py`, `ci_already_green.py`) are standard-library Python and
-belong to the new repo afterwards — they evolve there with the project.
+`github_labels.py`, `ci_scope.py`, `ci_already_green.py`, `check_architecture.py`) are
+standard-library Python 3.11+ and belong to the new repo afterwards — they evolve there
+with the project. The project itself can be any stack: it enters through the DoD
+commands, the CI action `setup-toolchain` (presets for python, node, java, dotnet, go,
+rust) and the native guards `project-init` writes for its invariants. The fixed
+technology is GitHub (issues + Actions).
 
 ## Install
 

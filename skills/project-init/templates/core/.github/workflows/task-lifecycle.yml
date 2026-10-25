@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "{{PYTHON_VERSION}}"
+          python-version: "3.12"
       # On a closed PR the guard would come too late to be satisfiable — nobody can
       # fix the description any more.
       - name: PR names its issue

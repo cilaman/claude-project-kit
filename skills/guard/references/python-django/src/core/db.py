@@ -1,7 +1,6 @@
-# kit:file tenancy
 """Database side of tenant isolation — RLS policies as migration operations.
 
-(Template path is `src/core/`; init moves the package under {{SRC_DIR}} if it differs.)
+(Template path is `src/core/`; init moves the package under src if it differs.)
 
 The policy is **not created at runtime**: every tenant table receives it through a
 migration, so it is part of the schema and can be verified by querying the catalog.

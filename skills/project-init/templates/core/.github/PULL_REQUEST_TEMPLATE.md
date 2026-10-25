@@ -21,7 +21,10 @@ Closes #
 ## Verification
 
 - [ ] `python3 scripts/check_repo.py`
-<!-- kit:if python-django -->
+<!-- kit:if architecture -->
+- [ ] `python3 scripts/check_architecture.py`
+<!-- kit:endif -->
+<!-- kit:if var:LINT_COMMAND -->
 - [ ] `{{LINT_COMMAND}}`
 <!-- kit:endif -->
 - [ ] `{{TEST_COMMAND}}`

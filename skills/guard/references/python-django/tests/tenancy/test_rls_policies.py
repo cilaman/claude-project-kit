@@ -1,4 +1,3 @@
-# kit:file tenancy
 """Schema guards: every tenant model has the column and the RLS policy — and every
 model linked to an organization is tenant data or is named as an exception.
 
@@ -13,12 +12,11 @@ guarded at the bottom: silence is not a decision.
 """
 
 import pytest
-from django.apps import apps
-from django.db import connection
-
 from core.db import POLICY_NAME
 from core.register import tenant_models
 from core.tenancy import TENANT_SETTING
+from django.apps import apps
+from django.db import connection
 
 pytestmark = pytest.mark.django_db
 

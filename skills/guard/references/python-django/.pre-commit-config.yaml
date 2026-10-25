@@ -7,7 +7,7 @@
 # The hook is a convenience for the working copy, not an authority: CI stays the place
 # where the answer counts and does not run pre-commit. Install: `uv run pre-commit install`.
 #
-# `files:` is the scope of the Definition of Done — `{{SRC_DIR}} tests scripts`, nothing else.
+# `files:` is the scope of the Definition of Done — `src tests scripts`, nothing else.
 #
 # `--force-exclude` is load-bearing: pre-commit passes file names on the command line,
 # and ruff applies `extend-exclude` (migrations) to a named file only with that flag.
@@ -20,12 +20,12 @@ repos:
         entry: uv run --frozen ruff check --force-exclude
         language: system
         types_or: [python, pyi]
-        files: ^({{SRC_DIR}}|tests|scripts)/
+        files: ^(src|tests|scripts)/
         require_serial: true
       - id: ruff-format
         name: ruff format
         entry: uv run --frozen ruff format --check --force-exclude
         language: system
         types_or: [python, pyi]
-        files: ^({{SRC_DIR}}|tests|scripts)/
+        files: ^(src|tests|scripts)/
         require_serial: true

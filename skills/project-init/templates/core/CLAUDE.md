@@ -15,12 +15,12 @@ generated, never typed. The entry point to the documentation is
    descriptions of commits are written in {{DOC_LANGUAGE}}. **Source code is English
    throughout** — identifiers, file names, commands, tests, comments, docstrings and the
    database schema.
-<!-- kit:if python-django -->
-   That every identifier and Python file name is ASCII is guarded by
-   `tests/structure/test_language_policy.py`; **the human language of identifiers,
-   comments and documentation is guarded by nobody** and stays with review.
+<!-- kit:if architecture -->
+   That file names of the code are ASCII is guarded by `scripts/check_architecture.py`;
+   **the human language of identifiers, comments and documentation is guarded by
+   nobody** and stays with review.
 <!-- kit:endif -->
-<!-- kit:if !python-django -->
+<!-- kit:if !architecture -->
    **Nobody guards the language** of identifiers, comments and documentation; it stays
    with review.
 <!-- kit:endif -->
@@ -72,29 +72,26 @@ generated, never typed. The entry point to the documentation is
    **The protocol is run by the skills `bl-start` and `bl-finish`** — invoke them,
    do not retype it from memory. Why it is a push and who owns what:
    [docs/decisions/task-tracking.md](docs/decisions/task-tracking.md).
-<!-- kit:if python-django -->
-6. **The domain does not know HTTP.** `{{SRC_DIR}}/{{PRESENTATION_MODULE}}/` may call
-   domain modules; a domain module must not import `{{PRESENTATION_MODULE}}`, name its
-   routes (`"{{PRESENTATION_MODULE}}:…"`) or `{% load %}` its tag libraries. Guarded by
-   `tests/structure/test_layering.py`.
-7. **The database is written by a domain service.** `{{PRESENTATION_MODULE}}/`
-   validates a form and hands over `cleaned_data`; `Model.save()`, `ModelForm.save()`,
-   `objects.create/update/delete` or `bulk_create` must not appear there. An exception
-   exists only by name in `ALLOWED_WRITES`, with its reason. Guarded by
-   `tests/structure/test_writes.py`.
-8. **Every skipped test is a decision.** A `skip`, `skipif` or `importorskip` is
-   declared in `DECLARED_SKIPS` with who answers the question instead. Guarded by
-   `tests/structure/test_skips.py`.
+<!-- kit:if architecture -->
+6. **Layers know only what they may use.** A file belongs to the first layer of
+   [architecture.toml](architecture.toml) whose paths match, and imports only its own
+   layer and the layers it `may_use` — the presentation calls the domain, never the
+   other way round. Guarded by `scripts/check_architecture.py`.
+7. **A forbidden construct is an exception by name.** What must not appear in a place
+   (a database write in the presentation, a clock read outside the clock module, …) is a
+   `[[forbidden]]` rule of `architecture.toml`; an exception names the file and the line
+   **with its reason**, and an exception that matches nothing fails. Guarded by
+   `scripts/check_architecture.py`.
+8. **Every skipped test is a decision.** A skip is declared in `architecture.toml`
+   with who answers the question instead — a skipped test is the one failure that
+   reports success. Guarded by `scripts/check_architecture.py`.
 <!-- kit:endif -->
-<!-- kit:if tenancy -->
-9. **Tenant isolation belongs to the database.** A tenant entity inherits from
-   `core.models.TenantModel` and its migration carries `core.db.rls_operations(<table>)`;
-   the context is set **only** through `core.tenancy` (middleware, or the context
-   manager outside a request), never by a hand-written `SET`. A model linked to the
-   organization that deliberately is not tenant data is named, with its reason, in
-   `NON_TENANT_WITH_ORGANIZATION` — silence is not a decision. Guarded by
-   `tests/tenancy/test_rls_policies.py`.
-<!-- kit:endif -->
+<!--
+   Invariants of the domain go below as further numbered rules — each one naming the
+   guard that enforces it (skill `guard`), or saying out loud that nobody guards it.
+   Typical: data isolation between tenants, money never as a float, audit trail written
+   by the service, a clock read only through one module.
+-->
 
 ## Structure
 
@@ -108,6 +105,9 @@ Main branch: `{{MAIN_BRANCH}}`
 │                        # tasks.tsv; closed items in done/
 ├── docs/                # documentation; entry point index.md, decisions in decisions/
 ├── scripts/             # process scripts (check_repo.py, task_lifecycle.py, github_labels.py)
+<!-- kit:if architecture -->
+├── architecture.toml    # layers, forbidden constructs, declared skips (check_architecture.py)
+<!-- kit:endif -->
 ├── {{SRC_DIR}}/                 # source code — modules described in docs/architecture.md
 ├── tests/               # tests; they also guard the hard rules
 ├── .claude/kit/         # project overlays of the project-kit skills
@@ -120,14 +120,17 @@ Modules of `{{SRC_DIR}}/` (one sentence each; the authoritative description is
 ## Definition of Done
 
 - `python3 scripts/check_repo.py` green.
-<!-- kit:if python-django -->
-- `{{LINT_COMMAND}}` and `{{TEST_COMMAND}}` green. **The regression suite is not part
-  of it** — tests marked `regression` ask about the environment, not the code, and run
-  in the weekly workflow.
+<!-- kit:if architecture -->
+- `python3 scripts/check_architecture.py` green.
 <!-- kit:endif -->
-<!-- kit:if !python-django -->
+<!-- kit:if var:LINT_COMMAND -->
+- `{{LINT_COMMAND}}` green.
+<!-- kit:endif -->
 - `{{TEST_COMMAND}}` green, and `python3 -m unittest discover -s tests/scripts -t .`
   for the process scripts.
+<!-- kit:if var:REGRESSION_COMMAND -->
+- **The regression suite is not part of it** — `{{REGRESSION_COMMAND}}` asks about the
+  environment, not the code, and runs in the weekly workflow.
 <!-- kit:endif -->
 - Backlog updated: `status:` and `result_note:` in the front matter, the file moved to
   `done/`, then `python3 scripts/check_repo.py --rebuild-all` (archive row, active

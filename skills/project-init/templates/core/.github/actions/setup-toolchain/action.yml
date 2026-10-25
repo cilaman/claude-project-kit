@@ -1,0 +1,60 @@
+name: Set up the toolchain
+description: >
+  The project's toolchain and dependencies — the one place CI learns which stack this
+  is. Every job that runs the project's own commands (tests, lint, regression) uses it,
+  so changing the stack means changing this file and nothing else.
+
+# The process scripts (check_repo.py, task_lifecycle.py, …) need only Python 3.11+ and
+# are set up by the workflows themselves; this action is about the project's own stack.
+runs:
+  using: composite
+  steps:
+# kit:if TOOLCHAIN=python
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+# kit:endif
+# kit:if TOOLCHAIN=node
+    - uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        cache: npm
+# kit:endif
+# kit:if TOOLCHAIN=java
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "21"
+# kit:endif
+# kit:if TOOLCHAIN=dotnet
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: "8.0.x"
+# kit:endif
+# kit:if TOOLCHAIN=go
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+# kit:endif
+# kit:if TOOLCHAIN=rust
+    - uses: dtolnay/rust-toolchain@stable
+# kit:endif
+# kit:if TOOLCHAIN=other
+    # Not configured: failing loudly beats a green run that never built anything.
+    - name: Toolchain is not configured
+      shell: bash
+      run: |
+        echo "::error::.github/actions/setup-toolchain/action.yml has no steps for this stack yet"
+        exit 1
+# kit:endif
+# kit:if var:SETUP_COMMAND
+    - name: Install dependencies
+      shell: bash
+      run: {{SETUP_COMMAND}}
+# kit:endif
+    - name: Toolchain ready
+      shell: bash
+      run: echo "toolchain {{TOOLCHAIN}} ready"

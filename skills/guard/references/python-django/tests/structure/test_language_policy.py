@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 #: Where code lives. Migrations are generated from the models and inherit their names.
-ROOTS = (ROOT / "{{SRC_DIR}}", ROOT / "tests", ROOT / "scripts")
+ROOTS = (ROOT / "src", ROOT / "tests", ROOT / "scripts")
 
 
 def _python_files():

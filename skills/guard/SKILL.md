@@ -22,12 +22,38 @@ a CLAUDE.md hard rule, a decision record, a docstring. If it is written in two p
 fix that first (one fact = one home). The guard's docstring **links** that home and
 states the failure it prevents — the concrete shape, not "keeps things consistent".
 
-Choose the place:
+Choose the place, weakest sufficient first:
 
-- an invariant over **code or runtime** → a test (structural tests read the AST or files,
-  not the runtime, so a violation is caught even in code no test calls),
-- an invariant over **repo structure, docs, backlog** → a check in `scripts/check_repo.py`
-  (stdlib only, must stay green offline).
+- **a rule of `architecture.toml`** (when the project has it) — a layer boundary, a
+  construct forbidden in some paths, a declared skip. Textual, works for every language,
+  costs one entry. Enough when the invariant is visible in the words of the code.
+- **a stack-native test** — when the words are not enough: an import built at run time,
+  a write behind a helper, a property of the database schema, an attribute of a type.
+  Written in the project's own test framework and language; structural tests read the
+  syntax tree or the files rather than running the code, so a violation is caught even
+  in code no test calls.
+- **a check in `scripts/check_repo.py`** — an invariant over repo structure, docs or
+  backlog (stdlib only, must stay green offline).
+
+## 1a · Stack-native guards — the recurring shapes
+
+The invariants worth a guard are the same in every stack; only the API that reads them
+differs. For each, ask the stack for the **structure**, not the behaviour:
+
+| Invariant | What the guard reads | Shape in one stack (worked example) |
+|---|---|---|
+| A layer does not reach a layer it must not know | the import graph (AST, compiler, module resolver, ArchUnit, dependency-cruiser, go list) | `references/python-django/tests/structure/test_layering.py` |
+| A place does not write the database | calls in that place's syntax tree | `references/python-django/tests/structure/test_writes.py` |
+| Tenant data is isolated by the database | the database catalog after migrations (policies, constraints, grants) — never the ORM's opinion of it | `references/python-django/tests/tenancy/test_rls_policies.py` |
+| Everything linked to X is classified | the model/type registry, in **both** directions, with a named-exceptions dictionary | the reverse half of `test_rls_policies.py` |
+| Every skip is a decision | the test files' syntax tree | `references/python-django/tests/structure/test_skips.py` |
+| Identifiers follow the language policy | names defined in the syntax tree | `references/python-django/tests/structure/test_language_policy.py` |
+
+The references are **one stack's answer**, kept for their shape — anti-vacuum, reverse
+direction, exceptions with reasons, a catalog query instead of trusting the framework.
+Translate the shape to the project's stack (e.g. ArchUnit for layering on the JVM,
+`ts-morph`/dependency-cruiser in TypeScript, `go/packages` in Go, a `pg_policies` query
+from any language); do not copy the Python.
 
 ## 2 · Write the guard with its anti-vacuum
 

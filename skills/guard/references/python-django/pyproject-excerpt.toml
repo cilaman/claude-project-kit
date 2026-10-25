@@ -13,7 +13,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["{{SRC_DIR}}", "tests", "scripts"]
+src = ["src", "tests", "scripts"]
 # Migrations are generated; formatting them by hand would be a second writer.
 extend-exclude = ["**/migrations/*"]
 
@@ -21,8 +21,8 @@ extend-exclude = ["**/migrations/*"]
 select = ["E", "F", "I", "UP", "B", "SIM", "DJ"]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "{{DJANGO_PROJECT}}.settings.test"
-pythonpath = ["{{SRC_DIR}}", "scripts"]
+DJANGO_SETTINGS_MODULE = "myproject.settings.test"
+pythonpath = ["src", "scripts"]
 testpaths = ["tests"]
 # The regression suite asks about the environment, not the code — it is out of the
 # Definition of Done and runs from its own workflow (`-m regression` overrides this).
@@ -32,5 +32,5 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["{{SRC_DIR}}"]
+source = ["src"]
 omit = ["*/migrations/*"]

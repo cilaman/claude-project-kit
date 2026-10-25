@@ -19,7 +19,8 @@ Rules for this run:
   copy templates by hand.
 - Ask me only what you cannot derive from the repository (name and one-paragraph
   description, documentation language, optional layers: requirements / ci-savings /
-  python-django + tenancy, test and lint commands).
+  architecture, the toolchain and the setup / test / lint / regression commands, and the
+  non-negotiable invariants of the domain — each becomes a hard rule with a guard).
 - Code is English; translate the prose of the rendered docs into the documentation
   language, never keys, statuses, markers, flags, label names, step names or file names.
 - Every hard rule in CLAUDE.md names its guard or says nobody guards it.

@@ -1,6 +1,6 @@
 ---
 name: project-init
-description: Initialise a repository with the project-kit method — CLAUDE.md with hard rules backed by guards, docs map and decision records, backlog where BL-NN is the GitHub issue number, claim protocol, generated indexes (BACKLOG.md, DONE.md, tasks.tsv), CI and task-lifecycle workflows, issue forms, labels, and optional layers (requirements RQ + use-case catalog UC, CI savings, Python/Django structural guards with tenant RLS). Interviews the user, renders the templates with scaffold.py, translates the prose into the project's documentation language, fills in the domain parts and verifies the result. Use for a new project or to adopt the method in an existing repo. Triggers: "inicializuj projekt", "založ nový projekt ako edilis", "nastav repo podľa project-kit", "bootstrap repo", "init project", "adopt the method here".
+description: Initialise a repository with the project-kit method — CLAUDE.md with hard rules backed by guards, docs map and decision records, backlog where BL-NN is the GitHub issue number, claim protocol, generated indexes (BACKLOG.md, DONE.md, tasks.tsv), CI and task-lifecycle workflows, issue forms, labels, and optional layers (requirements RQ + use-case catalog UC, CI savings, language-agnostic architecture guards). Works for any stack — the stack enters only through the DoD commands, the CI toolchain action and the stack-native guards it writes for the project's non-negotiable invariants. Interviews the user, renders the templates with scaffold.py, translates the prose into the project's documentation language, fills in the domain parts and verifies the result. Use for a new project or to adopt the method in an existing repo. Triggers: "inicializuj projekt", "založ nový projekt ako edilis", "nastav repo podľa project-kit", "bootstrap repo", "init project", "adopt the method here".
 ---
 
 # Initialising a repository with project-kit
@@ -39,14 +39,20 @@ One `AskUserQuestion` round, recommended option first:
    `PROJECT_SLUG`, `PROJECT_DESCRIPTION`).
 2. **Documentation language** — of docs, backlog, issues, PRs (code is always English).
 3. **Layers** (multi-select): `requirements` (RQ + UC catalog — products with a client and
-   use cases), `ci-savings` (test lanes from the diff, skip already-green trees, weekly
-   regression — worth it once the suite takes minutes), `python-django` (structural
-   guards; ask then about **tenancy**: multi-tenant data isolated by Postgres RLS).
-4. **Commands** of the Definition of Done if not obvious: test command; for
-   python-django the lint command, presentation module (`web`) and Django project package.
+   use cases), `ci-savings` (test lanes from the diff, skip already-green trees — worth it
+   once the suite takes minutes), `architecture` (layer boundaries, forbidden constructs,
+   declared skips, for any language — recommend it whenever there is or will be code).
+4. **Stack**, when the repo does not show it: the toolchain preset (`python`, `node`,
+   `java`, `dotnet`, `go`, `rust`, `none`, or `other` — then you write the
+   `setup-toolchain` steps yourself) and the commands: dependencies (`SETUP_COMMAND`),
+   tests, lint (optional), regression suite (optional).
+5. **Non-negotiable invariants of the domain** — "what must never happen, whatever the
+   code looks like?" (data of one customer visible to another, money as a float, a write
+   bypassing the audit trail, …). Each answer becomes a hard rule with a guard in step 5.
 
-Do not ask what has a conventional default: `SRC_DIR=src`, `PYTHON_VERSION` from the
-toolchain, `TODAY` from the date.
+Do not ask what has a conventional default: `SRC_DIR=src`, `TODAY` from the date, the
+toolchain and commands when the repo already shows them (`package.json` scripts,
+`pyproject.toml`, `build.gradle`, `go.mod`, `Cargo.toml`, `*.csproj`).
 
 ## 3 · Render
 
@@ -54,13 +60,13 @@ Write the variables to a JSON file in the scratchpad (every placeholder of CONVE
 the chosen profiles use), then dry-run first:
 
 ```bash
-python3 <skill-dir>/scaffold.py --out . --profiles requirements,ci-savings,python-django \
-    --options tenancy --vars <scratchpad>/kit-vars.json --dry-run
+python3 <skill-dir>/scaffold.py --out . --profiles requirements,ci-savings,architecture \
+    --vars <scratchpad>/kit-vars.json --dry-run
 ```
 
 Read the report: `skipped` are files that exist (decide per file: keep theirs and merge
 ours in by hand, or `--force` when the existing one is a stub), `merge` are fragments
-(`pyproject.fragment.toml` …) parked in `.kit-merge/`. Then run without `--dry-run`.
+parked in `.kit-merge/`. Then run without `--dry-run`.
 
 Merge every `.kit-merge/` file into its target by hand — keep the project's existing
 values, add ours — and **delete `.kit-merge/`**. A missing value fails loudly: scaffold
@@ -88,9 +94,18 @@ rule is a different rule.
 - With `requirements`: replace the placeholder area and `UC-01` row of
   `docs/use-cases.md` with the real first area — or leave one honest row; never invent a
   catalog the user has not described.
-- With `python-django`: make sure `DOMAIN_MODULES` of `tests/structure/test_layering.py`
-  will find the modules; with tenancy, adapt `TenantContextMiddleware` (URL shape,
-  membership model) and the `APP_DB_ROLE` setting to the project.
+- With `architecture`: fill `architecture.toml` — `languages`, the layers as they exist
+  (or as decided, with `empty = "why"` until code lands), the first `[[forbidden]]`
+  rules that follow from the hard rules. Run
+  `python3 scripts/check_architecture.py --list-files` and check every source file lands
+  in the layer you meant.
+- `.github/actions/setup-toolchain/action.yml`: check the preset's versions against the
+  repo (`.nvmrc`, `go.mod`, `global.json`, …); with `TOOLCHAIN=other` write the steps.
+- **Every invariant from the interview** becomes a numbered hard rule in CLAUDE.md with
+  its guard — a `[[forbidden]]` rule when words suffice, otherwise a stack-native test
+  written with the skill `guard` (its `references/` show the shapes, e.g. tenant
+  isolation checked in the database catalog). An invariant that cannot be guarded yet
+  is written with "nobody guards this yet — BL-NN" and gets its issue.
 
 ## 6 · Verify
 
@@ -100,9 +115,10 @@ python3 scripts/check_repo.py --no-issues
 python3 -m unittest discover -s tests/scripts -t .
 ```
 
-`check_repo` also fails on any placeholder or condition marker left over. With
-python-django, also the lint and test commands of the DoD (the structural guards need a
-Django project to import; in an empty repo say so instead of skipping them silently).
+`check_repo` also fails on any placeholder or condition marker left over. Then
+`python3 scripts/check_architecture.py` (with that layer) and the project's own lint
+and test commands — in an empty repo some cannot run yet; say so instead of skipping
+them silently.
 
 ## 7 · GitHub — outward-facing, confirm first
 
@@ -120,4 +136,5 @@ Each of these changes shared state; ask before running them:
 ## 8 · Report
 
 Say what was rendered, what was merged by hand, what you chose for the user (defaults),
-what is not verified (e.g. the Django guards without a project), and the next step.
+what is not verified (e.g. CI before the first push, a guard without code to walk yet),
+and the next step.

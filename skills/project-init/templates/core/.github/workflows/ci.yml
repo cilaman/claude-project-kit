@@ -24,9 +24,9 @@ jobs:
   checks:
     name: Repository and lint
     runs-on: ubuntu-latest
-    # One job, not two: a job is billed per started minute and both checks take
-    # seconds. Both steps run (`continue-on-error`) and the last step fails the job, so
-    # the author sees both failures at once.
+    # One job, not several: a job is billed per started minute and these checks take
+    # seconds. Every step runs (`continue-on-error`) and the last step fails the job, so
+    # the author sees every failure at once.
     #
     # `issues: read` for the guard comparing the backlog with the issue queue — it only
     # lists issues. Closing them is the merge's job through `Closes #NN`, not CI's.
@@ -35,16 +35,10 @@ jobs:
       issues: read
     steps:
       - uses: actions/checkout@v4
+      # The process scripts are standard-library Python, whatever the project's stack.
       - uses: actions/setup-python@v5
         with:
-          python-version: "{{PYTHON_VERSION}}"
-# kit:if python-django
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: uv sync --frozen
-# kit:endif
+          python-version: "3.12"
       - name: Repository structure and backlog consistency
         id: repo
         continue-on-error: true
@@ -53,17 +47,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/check_repo.py
-# kit:if python-django
+# kit:if architecture
+      - name: Architecture rules
+        id: architecture
+        continue-on-error: true
+        run: python3 scripts/check_architecture.py
+# kit:endif
+# kit:if var:LINT_COMMAND
+      - uses: ./.github/actions/setup-toolchain
       - name: Lint
         id: lint
         continue-on-error: true
         run: {{LINT_COMMAND}}
 # kit:endif
       - name: Outcome of the checks
-        # Without this step `continue-on-error` would turn a failure into green.
-        if: steps.repo.outcome == 'failure' || steps.lint.outcome == 'failure'
+        # Without this step `continue-on-error` would turn a failure into green. A step
+        # this project does not have reports an empty outcome and fails nothing.
+        if: >-
+          steps.repo.outcome == 'failure'
+          || steps.architecture.outcome == 'failure'
+          || steps.lint.outcome == 'failure'
         run: |
           echo "repository: ${{ steps.repo.outcome }}"
+          echo "architecture: ${{ steps.architecture.outcome }}"
           echo "lint: ${{ steps.lint.outcome }}"
           exit 1
 
@@ -78,17 +84,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "{{PYTHON_VERSION}}"
-      # The process scripts are stdlib and tested with unittest, so this runs in any
-      # project, whatever its own test runner is.
+          python-version: "3.12"
+      # Stdlib `unittest`, so this runs in any project, whatever its own test runner is.
       - name: Tests of the process scripts
         run: python3 -m unittest discover -s tests/scripts -t .
-# kit:if python-django
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: uv sync --frozen
-# kit:endif
+      - uses: ./.github/actions/setup-toolchain
       - name: Test suite
         run: {{TEST_COMMAND}}

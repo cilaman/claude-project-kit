@@ -1,8 +1,8 @@
 """Layering guard — the domain does not know HTTP.
 
 Hard rule in CLAUDE.md and docs/architecture.md: the presentation module
-`{{PRESENTATION_MODULE}}/` may call domain modules, a domain module must not depend on
-`{{PRESENTATION_MODULE}}/`. That is the price of later separability: once an `api/`, a
+`web/` may call domain modules, a domain module must not depend on
+`web/`. That is the price of later separability: once an `api/`, a
 management command or a queue appears next to it, the domain must work unchanged.
 
 Three spellings of the same dependency, each guarded separately because each is
@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "{{SRC_DIR}}"
-PRESENTATION_MODULE = "{{PRESENTATION_MODULE}}"
+SRC = ROOT / "src"
+PRESENTATION_MODULE = "web"
 
 #: Every package in the source root except the presentation layer and the project
 #: package, which necessarily knows the presentation (it assembles the URL conf).
@@ -29,7 +29,7 @@ DOMAIN_MODULES = sorted(
     path.name
     for path in SRC.iterdir()
     if path.is_dir()
-    and path.name not in {PRESENTATION_MODULE, "{{DJANGO_PROJECT}}"}
+    and path.name not in {PRESENTATION_MODULE, "myproject"}
     and (path / "__init__.py").exists()
 )
 

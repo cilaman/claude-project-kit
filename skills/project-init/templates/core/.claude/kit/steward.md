@@ -8,7 +8,10 @@ Always, also for a documentation-only change:
 
 ```bash
 python3 scripts/check_repo.py
-# kit:if python-django
+# kit:if architecture
+python3 scripts/check_architecture.py
+# kit:endif
+# kit:if var:LINT_COMMAND
 {{LINT_COMMAND}}
 # kit:endif
 ```
@@ -27,8 +30,8 @@ git fetch origin {{MAIN_BRANCH}}
 git diff --name-only origin/{{MAIN_BRANCH}}...HEAD | python3 scripts/ci_scope.py
 ```
 
-Lane `none` — do not run tests; `fast` — run exactly the arguments the script prints;
-`full` — the whole suite. The lists behind the lanes live in `scripts/ci_scope.py` and
+Lane `none` — do not run tests; `fast` — only the process-script tests
+(`python3 -m unittest discover -s tests/scripts -t .`); `full` — the whole suite. The lists behind the lanes live in `scripts/ci_scope.py` and
 are kept honest by `tests/scripts/test_ci_scope.py`.
 <!-- kit:endif -->
 
@@ -36,22 +39,13 @@ are kept honest by `tests/scripts/test_ci_scope.py`.
 
 When one of these turns red after a fix, the fix is wrong, not the guard.
 
-<!-- kit:if python-django -->
-- `tests/structure/test_layering.py` — domain modules do not import or name
-  `{{PRESENTATION_MODULE}}/` (imports, route names, template tag libraries).
-- `tests/structure/test_writes.py` — `{{PRESENTATION_MODULE}}/` does not write to the
-  database; the domain service writes. An exception only by name in `ALLOWED_WRITES`,
-  with its reason.
-- `tests/structure/test_language_policy.py` — code, file names and identifiers in
-  English (CLAUDE.md, rule 1).
-- `tests/structure/test_skips.py` — every place a test can skip is declared with who
-  answers the question instead.
+<!-- kit:if architecture -->
+- `scripts/check_architecture.py` over `architecture.toml` — layer boundaries, forbidden
+  constructs and declared skips. An exception is added only by name, **with its reason**;
+  widening a layer's `may_use` to make a red import green is a design decision, not a fix.
 <!-- kit:endif -->
-<!-- kit:if tenancy -->
-- `tests/tenancy/test_rls_policies.py` — a tenant model has its row-level-security
-  policy, and a model linked to the organization that is deliberately not tenant data is
-  named with its reason in `NON_TENANT_WITH_ORGANIZATION`. **Silence is not a decision.**
-<!-- kit:endif -->
+- *(Native guards of this stack, as they are written — one line each: path, what it
+  holds.)*
 - Generated blocks (`<!-- generated: … -->`) and `backlog/tasks.tsv` are never edited by
   hand — `python3 scripts/check_repo.py --rebuild-all`.
 

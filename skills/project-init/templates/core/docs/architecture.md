@@ -13,16 +13,10 @@
 
 ## Layers and direction of dependencies
 
-<!-- kit:if python-django -->
-`{{PRESENTATION_MODULE}}` is the only module that knows HTTP and HTML; it calls domain
-modules, never the other way round (CLAUDE.md rule 6). The database is written by a
-domain service, not by a view (rule 7) — so a second caller (an API, a command, a job)
-gets the same write, the same checks and the same audit trail.
-<!-- kit:endif -->
-<!-- kit:if tenancy -->
-Tenant isolation is a property of the database: row-level security on every tenant
-table, the context set by `core.tenancy` only (rule 9). Without a context a tenant
-table returns nothing — failing into emptiness, not into somebody else's data.
+<!-- kit:if architecture -->
+The layers and what each may use are declared in [../architecture.toml](../architecture.toml)
+— that file is their one home and `scripts/check_architecture.py` enforces it
+(CLAUDE.md rules 6–8). This section says **why** the layers are cut where they are.
 <!-- kit:endif -->
 *(Describe the layers as they appear.)*
 

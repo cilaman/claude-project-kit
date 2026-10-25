@@ -1,3 +1,4 @@
+# kit:file var:REGRESSION_COMMAND
 name: Regression
 
 # The regression suite asks about the **environment**, not the code: pinned images,
@@ -25,26 +26,10 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "{{PYTHON_VERSION}}"
-# kit:if python-django
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: uv sync --frozen
+      - uses: ./.github/actions/setup-toolchain
       - name: Regression suite
         id: suite
-        # `--no-cov`: a fraction of the suite would report a coverage collapse that
-        # never happened. `-m regression` overrides the default `not regression`.
-        run: {{TEST_COMMAND}} -m regression --no-cov
-# kit:endif
-# kit:if !python-django
-      - name: Regression suite
-        id: suite
-        run: {{TEST_COMMAND}}
-# kit:endif
+        run: {{REGRESSION_COMMAND}}
       - name: Open or update the regression issue
         if: failure() && steps.suite.outcome == 'failure'
         env:

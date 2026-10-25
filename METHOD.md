@@ -71,6 +71,19 @@ kit's hook). Consequences that turned out to matter:
   reason, or one that outlived its code, fails.
 - **Every skipped test is declared** with who answers the question instead — a skipped
   test is the one failure that reports success.
+- **Two strengths of guard.** A textual guard (`check_architecture.py`: imports, forbidden
+  constructs, skips) works for every language and costs one line of configuration; a
+  stack-native guard (syntax tree, compiler, the database catalog) sees what words cannot.
+  Use the weakest that suffices, and say which one guards what.
+
+## 5a · The method is not a stack
+
+Nothing in the method depends on the language, framework or database. The stack enters
+in exactly three places, each with one home: the **commands** of the Definition of Done
+(CLAUDE.md), the **toolchain** CI sets up (`.github/actions/setup-toolchain`), and the
+**native guards** of the project's non-negotiable invariants. The fixed technology is
+only what the process itself runs on: GitHub (issues are the identity, Actions the
+lifecycle) and Python 3.11+ for the standard-library process scripts.
 
 ## 6 · Green tests are the weakest sieve
 

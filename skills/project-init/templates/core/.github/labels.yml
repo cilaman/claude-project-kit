@@ -39,7 +39,7 @@ labels:
   - name: escaped-dod
     color: "5319e7"
     description: Defect found after a green Definition of Done — the body names the sieve that should have caught it
-# kit:if ci-savings
+# kit:if var:REGRESSION_COMMAND
   - name: regression
     color: b60205
     description: Red regression run — opened by the weekly workflow, not by people

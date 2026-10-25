@@ -24,8 +24,8 @@ jobs:
   checks:
     name: Repository and lint
     runs-on: ubuntu-latest
-    # One job, not two: a job is billed per started minute and both checks take
-    # seconds. Both steps run (`continue-on-error`) and the last step fails the job.
+    # One job, not several: a job is billed per started minute and these checks take
+    # seconds. Every step runs (`continue-on-error`) and the last step fails the job.
     #
     # This job also decides **whether and how** `Tests` runs. It is decided here and
     # not inside the test job because GitHub bills a started job, not its steps: a test
@@ -42,12 +42,15 @@ jobs:
     outputs:
       run: ${{ steps.decide.outputs.run }}
       lane: ${{ steps.scope.outputs.lane }}
-      pytest_args: ${{ steps.scope.outputs.pytest_args }}
     steps:
       - uses: actions/checkout@v4
         with:
           # The scope below needs the base of the diff; a shallow clone has none.
           fetch-depth: 0
+      # The process scripts are standard-library Python, whatever the project's stack.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       # The scope is **derived from the diff**, never written by the author — a keyword
       # could skip tests on a change to the source too. The lanes live in
       # `scripts/ci_scope.py`, kept honest by `tests/scripts/test_ci_scope.py`.
@@ -60,14 +63,10 @@ jobs:
       # script may err on.
       - name: Scope of the change
         id: scope
-        env:
-          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          FLAG=""
-          if [ "${DRAFT:-false}" = "true" ]; then FLAG="--draft"; fi
           BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
           { git diff --name-only "$BASE" HEAD 2>/dev/null || true; } \
-            | python3 scripts/ci_scope.py --github-output $FLAG
+            | python3 scripts/ci_scope.py --github-output
       # A merge re-tests the tree its PR just tested. Pull-request heads are the only way
       # to find that tested commit after a rebase or squash merge. `blob:none`: the
       # answer needs commit objects only (they carry the tree id), no file contents.
@@ -90,16 +89,6 @@ jobs:
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "{{PYTHON_VERSION}}"
-# kit:if python-django
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: uv sync --frozen
-# kit:endif
       # Never filtered: for a documentation-only change this is the one check that has
       # something to say.
       - name: Repository structure and backlog consistency
@@ -108,17 +97,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/check_repo.py
-# kit:if python-django
+# kit:if architecture
+      - name: Architecture rules
+        id: architecture
+        continue-on-error: true
+        run: python3 scripts/check_architecture.py
+# kit:endif
+# kit:if var:LINT_COMMAND
+      - uses: ./.github/actions/setup-toolchain
       - name: Lint
         id: lint
         continue-on-error: true
         run: {{LINT_COMMAND}}
 # kit:endif
       - name: Outcome of the checks
-        # Without this step `continue-on-error` would turn a failure into green.
-        if: steps.repo.outcome == 'failure' || steps.lint.outcome == 'failure'
+        # Without this step `continue-on-error` would turn a failure into green. A step
+        # this project does not have reports an empty outcome and fails nothing.
+        if: >-
+          steps.repo.outcome == 'failure'
+          || steps.architecture.outcome == 'failure'
+          || steps.lint.outcome == 'failure'
         run: |
           echo "repository: ${{ steps.repo.outcome }}"
+          echo "architecture: ${{ steps.architecture.outcome }}"
           echo "lint: ${{ steps.lint.outcome }}"
           exit 1
 
@@ -135,24 +136,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "{{PYTHON_VERSION}}"
+          python-version: "3.12"
+      # The fast lane is exactly these: every reader of the fast-lane paths is a
+      # process-script test (`tests/scripts/test_ci_scope.py` holds that true).
       - name: Tests of the process scripts
         run: python3 -m unittest discover -s tests/scripts -t .
-# kit:if python-django
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        run: uv sync --frozen
-      # `pytest_args` is empty for the full suite and lists the readers in the fast lane;
-      # one place assembles it (`ci_scope.py`), so lane and coverage never disagree.
-      - name: Test suite
-        run: {{TEST_COMMAND}} ${{ needs.checks.outputs.pytest_args }}
-# kit:endif
-# kit:if !python-django
-      # The fast lane is fully covered by the process-script tests above; only the full
-      # lane runs the project's own suite.
+      - uses: ./.github/actions/setup-toolchain
+        if: needs.checks.outputs.lane == 'full'
       - name: Test suite
         if: needs.checks.outputs.lane == 'full'
         run: {{TEST_COMMAND}}
-# kit:endif

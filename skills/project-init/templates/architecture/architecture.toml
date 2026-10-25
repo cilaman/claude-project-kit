@@ -1,0 +1,77 @@
+# Architecture rules of {{PROJECT_NAME}} — their one home. Checked by
+# `python3 scripts/check_architecture.py` (CLAUDE.md, hard rules on layers, forbidden
+# constructs and skipped tests). The guards are textual and work for any language; a
+# stronger, stack-native guard goes next to them where an invariant is worth it.
+#
+# `python3 scripts/check_architecture.py --list-files` shows which layer each file
+# falls in — run it after changing `paths`.
+
+# Import and skip presets: python, javascript, typescript, java, kotlin, csharp, go,
+# rust, php, ruby. Another language: add [[import_patterns]] and skips.patterns below.
+languages = []
+
+# Never the project's own code (generated, vendored). node_modules, target, build,
+# dist, .venv and friends are always excluded. The tests of the process scripts are
+# excluded too: they carry imports and skips of every language as test data.
+exclude = ["tests/scripts/**"]
+
+# File names that must be ASCII (language policy, CLAUDE.md rule 1).
+ascii_paths = ["{{SRC_DIR}}/**", "tests/**", "scripts/**"]
+
+# --- Layers ---------------------------------------------------------------------------
+# A file belongs to the FIRST layer whose `paths` match — order is precedence, so the
+# narrow layers go first. `imports` are the prefixes code elsewhere uses to name the
+# layer (`web`, `@app/web`, `com.acme.web`, `crate::web`, `App\Web`); relative imports
+# are resolved against `paths`. A layer may import only itself and `may_use`.
+# Until code exists, `empty = "why"` keeps a layer from failing the anti-vacuum check;
+# delete it when the first file lands.
+#
+# [[layers]]
+# name = "presentation"
+# paths = ["{{SRC_DIR}}/web/**"]
+# imports = ["web"]
+# may_use = ["domain", "core"]
+#
+# [[layers]]
+# name = "domain"
+# paths = ["{{SRC_DIR}}/domain/**"]
+# imports = ["domain"]
+# may_use = ["core"]
+#
+# [[layers]]
+# name = "core"
+# paths = ["{{SRC_DIR}}/core/**"]
+# imports = ["core"]
+# may_use = []
+
+# --- Forbidden constructs -------------------------------------------------------------
+# A construct that must not appear in some place. `example` is a line the pattern must
+# match (proof the guard can fire). An exception names the file and a substring of the
+# line, with its reason; an exception that matches nothing fails — delete it.
+#
+# [[forbidden]]
+# name = "presentation-writes-the-database"
+# reason = "The database is written by a domain service, so a second caller gets the same checks."
+# paths = ["{{SRC_DIR}}/web/**"]
+# pattern = '\.(save|delete)\(|\.objects\.(create|update|delete)\('
+# example = "form.save()"
+#
+# [[forbidden.allowed]]
+# path = "{{SRC_DIR}}/web/legacy_import.py"
+# match = "batch.save()"
+# reason = "Legacy import screen; the write moves to the service in BL-NN."
+
+# --- Skipped tests --------------------------------------------------------------------
+# A skipped test is the one failure that reports success. Every skip under `paths` is
+# declared with who answers the question instead. Categories: commit (another
+# environment of the commit run answers it), regression (the weekly run answers it),
+# dormant (the set it walks is empty today), data (the sample lacks the case).
+[skips]
+paths = ["tests/**", "{{SRC_DIR}}/**"]
+patterns = []
+#
+# [[skips.declared]]
+# path = "tests/test_render.py"
+# match = "skipif(shutil.which"
+# category = "commit"
+# answers = "CI installs the renderer, so the commit run there answers this test."

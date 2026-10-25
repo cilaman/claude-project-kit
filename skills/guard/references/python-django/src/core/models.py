@@ -1,4 +1,3 @@
-# kit:file tenancy
 """Base model conventions.
 
 `TenantModel` is the only correct way to create a tenant entity: it carries

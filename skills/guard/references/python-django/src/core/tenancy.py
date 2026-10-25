@@ -1,7 +1,6 @@
-# kit:file tenancy
 """Tenant context — the only way the application touches an organization's data.
 
-(Template path is `src/core/`; init moves the package under {{SRC_DIR}} if it differs.)
+(Template path is `src/core/`; init moves the package under src if it differs.)
 
 Tenant isolation is a property of the database, not of developer discipline. This
 module does two things and nothing more:
@@ -37,7 +36,7 @@ from django.http import Http404
 #: policy expressions when the migrations run, so renaming it here alone leaves every
 #: policy of an existing database reading a setting nobody sets — and every tenant
 #: query empty. Rebuild the database after a rename.
-TENANT_SETTING = "{{PROJECT_SLUG}}.organization_id"
+TENANT_SETTING = "myproject.organization_id"
 
 _IDENTIFIER_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 

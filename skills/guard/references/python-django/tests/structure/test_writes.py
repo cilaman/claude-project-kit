@@ -1,6 +1,6 @@
 """Write guard — the presentation validates, a domain service writes.
 
-`{{PRESENTATION_MODULE}}/` validates a form and hands `cleaned_data` on; it must not
+`web/` validates a form and hands `cleaned_data` on; it must not
 write through the ORM itself. A write path living in a view cannot be called without
 a request, so a future `api/`, a management command or a queue would have to write it
 again — and with it the audit record and the checks the service carries.
@@ -14,7 +14,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PRESENTATION = ROOT / "{{SRC_DIR}}" / "{{PRESENTATION_MODULE}}"
+PRESENTATION = ROOT / "src" / "web"
 
 #: Methods that write on whatever they are called: a model, a queryset, a ModelForm.
 WRITE_METHODS = {"save", "delete"}
@@ -109,7 +109,7 @@ def test_the_presentation_does_not_write_to_the_database():
         if (location, expression) not in ALLOWED_WRITES
     ]
     assert not not_allowed, (
-        f"database write in `{{PRESENTATION_MODULE}}/` — validate the form, hand "
+        f"database write in `web/` — validate the form, hand "
         f"`cleaned_data` to a domain service (CLAUDE.md, write rule): {not_allowed}"
     )
 

@@ -11,10 +11,16 @@ then everywhere it is used.
 
 | Profile | Always? | Carries |
 |---|---|---|
-| `core` | yes | CLAUDE.md, README, docs map + principles + decision records (`docs/decisions/task-tracking.md` = the method itself, `_TEMPLATE.md`), backlog, GitHub forms/labels/PR template, CI + task-lifecycle workflows, `check_repo.py`, `task_lifecycle.py`, `github_labels.py`, their tests, `.claude/kit/` overlays |
+| `core` | yes | CLAUDE.md, README, docs map + principles + decision records (`docs/decisions/task-tracking.md` = the method itself, `_TEMPLATE.md`), backlog, GitHub forms/labels/PR template, CI + task-lifecycle + (optional) regression workflows, the `setup-toolchain` action, `check_repo.py`, `task_lifecycle.py`, `github_labels.py`, their tests, `.claude/kit/` overlays |
 | `requirements` | optional | `docs/requirements.md` + `docs/requirements/_TEMPLATE.md` (RQ layer), `docs/use-cases.md` (UC catalog) |
-| `ci-savings` | optional | `ci_scope.py`, `ci_already_green.py`, their tests, `ci.yml` variant with lanes, `regression.yml` |
-| `python-django` | optional | ruff/pytest config fragment, pre-commit, structural guards (layering, writes, language, skips), optional tenancy (RLS) package |
+| `ci-savings` | optional | `ci_scope.py`, `ci_already_green.py`, their tests, `ci.yml` variant with lanes |
+| `architecture` | optional | `architecture.toml` + `check_architecture.py` (any language: layers via imports, forbidden constructs with named exceptions, declared skips, ASCII file names) and its tests |
+
+**No profile is tied to a stack.** The only fixed technology is the process scripts'
+Python 3.11+ (standard library) and GitHub (issues, Actions). Everything about the
+project's own stack is in three places: the commands below, the `setup-toolchain`
+action, and stack-native guards written by the skill `guard` (worked examples in
+`skills/guard/references/`).
 
 Profiles apply in the order of the table; a later profile's file at the same path
 **replaces** the earlier one. A file named `*.fragment.<ext>` is **merged** into
@@ -22,7 +28,9 @@ Profiles apply in the order of the table; a later profile's file at the same pat
 
 ## Placeholders
 
-`{{NAME}}` — replaced at init, never left in the new repo (init greps for `{{`).
+`{{NAME}}` — replaced at init, never left in the new repo (`check_repo.py` fails on one).
+An optional placeholder may be the empty string; templates use it only inside a
+`var:NAME` condition.
 
 | Placeholder | Meaning | Example |
 |---|---|---|
@@ -33,12 +41,12 @@ Profiles apply in the order of the table; a later profile's file at the same pat
 | `{{MAIN_BRANCH}}` | default branch | `main` |
 | `{{DOC_LANGUAGE}}` | language of docs, backlog, issues, PRs | `Czech` |
 | `{{TODAY}}` | init date, `YYYY-MM-DD` | |
-| `{{PYTHON_VERSION}}` | `3.12` | |
 | `{{SRC_DIR}}` | source root | `src` |
-| `{{TEST_COMMAND}}` | full test command of the DoD | `uv run pytest` |
-| `{{LINT_COMMAND}}` | python-django: lint command(s) of the DoD; used only inside `python-django` blocks — another stack adds its linter to CLAUDE.md and CI by hand | `uv run ruff check src tests scripts` |
-| `{{PRESENTATION_MODULE}}` | python-django: the only module that knows HTTP | `web` |
-| `{{DJANGO_PROJECT}}` | python-django: the settings/urls package | `edilis` |
+| `{{TOOLCHAIN}}` | preset of `setup-toolchain`: `none`, `python`, `node`, `java`, `dotnet`, `go`, `rust`, `other` (fails loudly until written by hand) | `node` |
+| `{{SETUP_COMMAND}}` | optional: installs dependencies after the toolchain | `npm ci`, `uv sync --frozen` |
+| `{{TEST_COMMAND}}` | test command of the DoD | `npm test`, `./gradlew test`, `go test ./...` |
+| `{{LINT_COMMAND}}` | optional: lint command(s) of the DoD | `npm run lint`, `uv run ruff check .` |
+| `{{REGRESSION_COMMAND}}` | optional: the suite that asks about the environment; empty = no regression workflow | `npm run test:regression` |
 
 ## Conditional blocks
 
@@ -48,8 +56,9 @@ always removed.
 - Markdown / HTML: `<!-- kit:if <profile> -->` … `<!-- kit:endif -->`
 - YAML / Python / TOML / shell: `# kit:if <profile>` … `# kit:endif`
 
-`<condition>` is a profile name, or `tenancy` (sub-option of `python-django`), optionally
-negated with `!` (`# kit:if !python-django`). No nesting. A file whose **first line**
+`<condition>` is a profile name (`requirements`), a non-empty variable
+(`var:LINT_COMMAND`) or a variable with a value (`TOOLCHAIN=node`), optionally negated
+with `!` (`# kit:if !architecture`). No nesting. A file whose **first line**
 carries `kit:file <condition>` (inside any comment syntax) is dropped whole when the
 condition is off; the marker line is removed when it is on. `scaffold.py` applies all of
 this — it is the only implementation.
@@ -101,8 +110,8 @@ Fully generated files (no markers, never edited): `backlog/tasks.tsv`
 ## GitHub
 
 - Labels (`.github/labels.yml`, complete — a label not in the file is deleted):
-  `bug`, `chore`, `needs-spec`, `in-progress`, `nojira`, `escaped-dod`, and with
-  `ci-savings` also `regression`.
+  `bug`, `chore`, `needs-spec`, `in-progress`, `nojira`, `escaped-dod`, and when `{{REGRESSION_COMMAND}}` is given
+  also `regression`.
 - Branch: `bl-<NN>-<slug>`; claim commit (may be empty):
   `chore(backlog): claim — <title> — BL-NN`.
 - PR description first line: `Closes #NN` (with the number). `nojira` label and a
@@ -122,8 +131,9 @@ Fully generated files (no markers, never edited): `backlog/tasks.tsv`
 
 - Kit scripts' tests are `unittest` (stdlib), runnable as
   `python3 -m unittest discover -s tests/scripts -t .` in projects without pytest.
-- The regression suite (asks about the environment, not the code) is the pytest marker
-  `regression`; it is outside the Definition of Done and runs in `regression.yml`.
+- The regression suite (asks about the environment, not the code) is whatever
+  `{{REGRESSION_COMMAND}}` runs; it is outside the Definition of Done and runs in
+  `regression.yml`, which exists only when the command is given.
 
 ## Project overlays of plugin skills
 

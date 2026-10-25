@@ -1,4 +1,3 @@
-# kit:file tenancy
 """The registry of tenant models — derived from inheritance, never typed.
 
 A hand-kept list would be a second home of the fact "this model is tenant data" and

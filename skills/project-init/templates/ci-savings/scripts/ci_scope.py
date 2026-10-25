@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Derives from the diff how much of the test suite has something to say.
 
 A change that touches nothing the tests read should not pay for the full test job.
@@ -12,62 +13,44 @@ of a proof lands in `full`, an empty or unreadable diff included. A guard wrong 
 other direction is a green build over untested code.
 
 ``none``
-    Every changed path lies in `UNWATCHED`: nothing the suite opens moved.
+    Every changed path lies in `UNWATCHED`: nothing any test opens moved.
 ``fast``
-    Every changed path lies in `FAST_LANE`. The suite **does** read those paths, but
-    only from the modules `FAST_LANE_TESTS` names, so only those run.
+    Every changed path lies in `FAST_LANE`. Tests **do** read those paths, but only the
+    tests of the process scripts (`tests/scripts/`), so only those run — they are
+    standard-library Python and take seconds, whatever the project's stack.
 ``full``
     Anything else.
 
 **"Documentation" is not the dividing line.** Tests commonly read `docs/` and
 `backlog/` (link checks, catalogues, generated indexes), so those paths are not
 unwatched — the honest answer is to name their readers and run exactly those.
-# kit:if python-django
-
-The second question is **what the run measures**, and the diff does not answer it.
-Coverage instrumentation is a large share of a run and a measuring instrument rather
-than a test. It is keyed on the state of the pull request: a draft pays only for the
-tests, a PR ready for review pays for the coverage measurement too. GitHub refuses to
-merge a draft, so every merged change passes through a measured run.
-
-    git diff --name-only BASE HEAD | python3 scripts/ci_scope.py --draft
-
-`--draft` has to be **asserted**: a push, a missing flag or an event without a pull
-request all measure.
-# kit:endif
 """
 
 import argparse
 import os
 import sys
 
-# **The three lists below are claims about the whole test suite**, not configuration.
-# They are true on the day they are written and rot silently afterwards — the moment a
-# test starts reading a path listed here, the lane skips a test that would have failed.
-# `tests/scripts/test_ci_scope.py` keeps them honest; extend the lists only together
-# with that guard, never instead of it.
+# **The lists below are claims about the whole test suite**, not configuration. They
+# are true on the day they are written and rot silently afterwards — the moment a test
+# starts reading a path listed here, the lane skips a test that would have failed.
+# `tests/scripts/test_ci_scope.py` keeps them honest; extend them only together with
+# that guard, never instead of it.
 
 #: Path prefixes no test opens, so a change confined to them cannot change what the
 #: tests say. `scripts/check_repo.py` is a different question: its job never goes
 #: through this filter, which is what keeps a documentation-only change checked at all.
 UNWATCHED = (".claude/",)
 
-#: Path prefixes the suite reads, but only from the modules `FAST_LANE_TESTS` names in
-#: full. A diff confined to them runs those modules and nothing else.
+#: Path prefixes read only by the tests of the process scripts. A diff confined to them
+#: runs `tests/scripts/` and not the project's own suite. When a test of the project
+#: starts reading one of them, the prefix leaves this list — it goes to the full lane.
 FAST_LANE = (
     "backlog/",
     "docs/",
 )
 
-#: Every test module that reads anything under `FAST_LANE`.
-FAST_LANE_TESTS = ("tests/scripts/test_check_repo.py",)
-
-# kit:if python-django
-#: Serial and uninstrumented: a fraction of the suite would report a coverage collapse
-#: that never happened, and building parallel workers costs more than a small subset
-#: returns.
-FAST_LANE_PYTEST_ARGS = ("-p", "no:xdist", "--no-cov", *FAST_LANE_TESTS)
-# kit:endif
+#: Where the fast lane's tests live; they are the only readers `FAST_LANE` may have.
+FAST_LANE_TESTS = "tests/scripts/"
 
 
 def tests_needed(paths):
@@ -99,55 +82,18 @@ def lane(paths):
     return "fast" if reasons and all(path.startswith(FAST_LANE) for path in reasons) else "full"
 
 
-def measures_coverage(paths, draft=False):
-    """Does this run write the coverage measurement?
-
-    Only the full lane on a pull request that is not a draft: a fraction of the suite
-    would report a coverage collapse that never happened, and a draft is bought once
-    per iteration instead of once per merge candidate.
-    """
-# kit:if python-django
-    return lane(paths) == "full" and not draft
-# kit:endif
-# kit:if !python-django
-    return False  # this project measures no coverage in CI
-# kit:endif
-
-
-def pytest_args(paths, draft=False):
-    """Arguments for the test command — empty means "everything, as configured".
-
-    One place assembles them, so `--no-cov` is never spelled twice (once by the lane,
-    once by the draft state) and the two can never disagree about which wins.
-    """
-# kit:if python-django
-    if lane(paths) == "fast":
-        return list(FAST_LANE_PYTEST_ARGS)
-    return [] if measures_coverage(paths, draft) else ["--no-cov"]
-# kit:endif
-# kit:if !python-django
-    return list(FAST_LANE_TESTS) if lane(paths) == "fast" else []
-# kit:endif
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--github-output",
         action="store_true",
-        help="write `tests_needed`, `lane`, `coverage` and `pytest_args` to $GITHUB_OUTPUT",
-    )
-    parser.add_argument(
-        "--draft",
-        action="store_true",
-        help="the pull request is a draft — the run skips coverage measurement",
+        help="write `tests_needed` and `lane` to $GITHUB_OUTPUT",
     )
     args = parser.parse_args(argv)
 
     paths = [row.strip() for row in sys.stdin.read().splitlines() if row.strip()]
     needed = tests_needed(paths)
     chosen = lane(paths)
-    measured = measures_coverage(paths, args.draft)
 
     shown = []
     if not paths:
@@ -157,10 +103,7 @@ def main(argv=None):
         print(f"no tests run — all {len(paths)} changed paths lie outside what they read:")
     elif chosen == "fast":
         shown = watched(paths)
-        print(
-            f"fast lane — the change touches only {len(shown)} paths read by "
-            f"{len(FAST_LANE_TESTS)} modules; only those run:"
-        )
+        print(f"fast lane — {len(shown)} paths read only by {FAST_LANE_TESTS}; only those run:")
     else:
         shown = watched(paths)
         print(f"full suite — the change touches {len(shown)} paths the suite reads:")
@@ -168,10 +111,6 @@ def main(argv=None):
         print(f"  {path}")
     if len(shown) > 10:
         print(f"  … and {len(shown) - 10} more")
-    # Said out loud: a run that measured nothing looks exactly like one that measured
-    # everything and passed.
-    if chosen != "none":
-        print("coverage is measured" if measured else "coverage is not measured in this run")
 
     if args.github_output:
         target = os.environ.get("GITHUB_OUTPUT")
@@ -181,8 +120,6 @@ def main(argv=None):
         with open(target, "a", encoding="utf-8") as handle:
             handle.write(f"tests_needed={'true' if needed else 'false'}\n")
             handle.write(f"lane={chosen}\n")
-            handle.write(f"coverage={'true' if measured else 'false'}\n")
-            handle.write(f"pytest_args={' '.join(pytest_args(paths, args.draft))}\n")
     return 0
 
 

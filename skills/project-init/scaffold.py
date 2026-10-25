@@ -34,12 +34,14 @@ HERE = Path(__file__).resolve().parent
 TEMPLATES = HERE / "templates"
 
 #: Profile order is the override order.
-PROFILES = ("core", "requirements", "ci-savings", "python-django")
-#: Conditions that are not profiles of their own.
-SUB_OPTIONS = {"tenancy": "python-django"}
+PROFILES = ("core", "requirements", "ci-savings", "architecture")
 
 PLACEHOLDER_RE = re.compile(r"\{\{([A-Z][A-Z_]*)\}\}")
-CONDITION = r"(!?[a-z][a-z-]*)"
+#: A profile (`requirements`), a non-empty variable (`var:LINT_COMMAND`) or a variable
+#: with a value (`TOOLCHAIN=node`); any of them negated with `!`.
+#: The specific forms come first: alternation takes the first that matches, and a bare
+#: `var` would otherwise be read as a profile name.
+CONDITION = r"(!?(?:var:[A-Z][A-Z_]*|[A-Z][A-Z_]*=[a-z0-9.+-]+|[a-z][a-z-]*))(?![\w:=])"
 #: A marker is a whole line, wherever it is indented — inside a function body, a
 #: docstring or a YAML step — so removing it never leaves a half line behind.
 BLOCK_RES = tuple(
@@ -61,23 +63,34 @@ class ScaffoldError(RuntimeError):
     pass
 
 
-def enabled(condition: str, switched_on: set[str]) -> bool:
+def enabled(condition: str, switched_on: set[str], variables: dict[str, str]) -> bool:
     negated = condition.startswith("!")
     name = condition.lstrip("!")
-    if name not in PROFILES and name not in SUB_OPTIONS:
+    if name.startswith("var:"):
+        holds = bool(variables.get(name[4:], "").strip())
+    elif "=" in name:
+        variable, value = name.split("=", 1)
+        if variable not in variables:
+            raise ScaffoldError(f"condition `{name}` needs the variable {variable}")
+        holds = variables[variable] == value
+    elif name in PROFILES:
+        holds = name in switched_on
+    else:
         raise ScaffoldError(f"unknown condition `{name}`")
-    return (name not in switched_on) if negated else (name in switched_on)
+    return holds != negated
 
 
 def render(text: str, switched_on: set[str], variables: dict[str, str], origin: str) -> str | None:
     """The rendered text, or None when the whole file is conditional and switched off."""
     marker = FILE_MARKER_RE.match(text)
     if marker:
-        if not enabled(marker.group(1), switched_on):
+        if not enabled(marker.group(1), switched_on, variables):
             return None
-        text = text[marker.end():]
+        text = text[marker.end() :]
     for block_re in BLOCK_RES:
-        text = block_re.sub(lambda m: m.group(2) if enabled(m.group(1), switched_on) else "", text)
+        text = block_re.sub(
+            lambda m: m.group(2) if enabled(m.group(1), switched_on, variables) else "", text
+        )
     if "kit:if" in text or "kit:endif" in text:
         raise ScaffoldError(f"{origin}: unbalanced or nested kit:if block")
     unknown = sorted(set(PLACEHOLDER_RE.findall(text)) - variables.keys())
@@ -109,12 +122,15 @@ def collect(profiles: list[str]) -> dict[str, Path]:
     return chosen
 
 
-def scaffold(out: Path, profiles: list[str], options: list[str], variables: dict[str, str],
-             *, force: bool = False, dry_run: bool = False) -> dict[str, list[str]]:
-    switched_on = set(profiles) | set(options)
-    for option in options:
-        if SUB_OPTIONS.get(option) not in profiles:
-            raise ScaffoldError(f"`{option}` needs the profile `{SUB_OPTIONS.get(option)}`")
+def scaffold(
+    out: Path,
+    profiles: list[str],
+    variables: dict[str, str],
+    *,
+    force: bool = False,
+    dry_run: bool = False,
+) -> dict[str, list[str]]:
+    switched_on = set(profiles)
     report: dict[str, list[str]] = {"written": [], "skipped": [], "merge": [], "dropped": []}
     for relative, source in collect(profiles).items():
         origin = f"{profile_of(source)}/{relative}"
@@ -164,9 +180,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--profiles", default="", help="comma list beyond core: " + ", ".join(PROFILES[1:])
     )
-    parser.add_argument(
-        "--options", default="", help="comma list of sub-options: " + ", ".join(SUB_OPTIONS)
-    )
     parser.add_argument("--var", action="append", default=[], help="NAME=value, repeatable")
     parser.add_argument("--vars", help="JSON file with {NAME: value}")
     parser.add_argument("--force", action="store_true", help="overwrite existing files")
@@ -177,12 +190,16 @@ def main(argv: list[str] | None = None) -> int:
         for profile in profiles:
             if profile not in PROFILES:
                 raise ScaffoldError(f"unknown profile `{profile}`")
-        options = [o for o in args.options.split(",") if o]
         out = Path(args.out).resolve()
         if not out.is_dir():
             raise ScaffoldError(f"{out} is not a directory")
-        report = scaffold(out, profiles, options, parse_variables(args.var, args.vars),
-                          force=args.force, dry_run=args.dry_run)
+        report = scaffold(
+            out,
+            profiles,
+            parse_variables(args.var, args.vars),
+            force=args.force,
+            dry_run=args.dry_run,
+        )
     except (ScaffoldError, json.JSONDecodeError, OSError) as error:
         print(f"scaffold: {error}", file=sys.stderr)
         return 1
