@@ -43,12 +43,12 @@ jobs:
       run: ${{ steps.decide.outputs.run }}
       lane: ${{ steps.scope.outputs.lane }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The scope below needs the base of the diff; a shallow clone has none.
           fetch-depth: 0
       # The process scripts are standard-library Python, whatever the project's stack.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # The scope is **derived from the diff**, never written by the author — a keyword
@@ -133,8 +133,8 @@ jobs:
     # must not hide the test result.
     if: ${{ !cancelled() && needs.checks.outputs.run == 'true' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # The fast lane is exactly these: every reader of the fast-lane paths is a

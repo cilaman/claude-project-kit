@@ -10,32 +10,33 @@ runs:
   using: composite
   steps:
 # kit:if TOOLCHAIN=python
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v7
       with:
         python-version: "3.12"
-    - uses: astral-sh/setup-uv@v5
+    # setup-uv publishes no major tags since v8 (immutable releases), so pin the exact one.
+    - uses: astral-sh/setup-uv@v10.3.2
       with:
         enable-cache: true
 # kit:endif
 # kit:if TOOLCHAIN=node
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: lts/*
         cache: npm
 # kit:endif
 # kit:if TOOLCHAIN=java
-    - uses: actions/setup-java@v4
+    - uses: actions/setup-java@v6
       with:
         distribution: temurin
         java-version: "21"
 # kit:endif
 # kit:if TOOLCHAIN=dotnet
-    - uses: actions/setup-dotnet@v4
+    - uses: actions/setup-dotnet@v6
       with:
         dotnet-version: "8.0.x"
 # kit:endif
 # kit:if TOOLCHAIN=go
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
 # kit:endif

@@ -34,9 +34,9 @@ jobs:
       contents: read
       issues: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The process scripts are standard-library Python, whatever the project's stack.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Repository structure and backlog consistency
@@ -81,8 +81,8 @@ jobs:
     needs: checks
     if: ${{ !cancelled() }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # Stdlib `unittest`, so this runs in any project, whatever its own test runner is.
